@@ -1,0 +1,32 @@
+{
+  "name": "rag-incident-responder",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nithinbharathi93/rag-incident-responder.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Nithinbharathi93/rag-incident-responder/issues"
+  },
+  "homepage": "https://github.com/Nithinbharathi93/rag-incident-responder#readme",
+  "dependencies": {
+    "@huggingface/inference": "^4.13.10",
+    "@langchain/textsplitters": "^1.0.1",
+    "@supabase/supabase-js": "^2.93.2",
+    "axios": "^1.13.4",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "langsmith": "^0.4.10",
+    "multer": "^2.0.2",
+    "pdf-parse": "^1.1.1",
+    "redis": "^5.10.0"
+  }
+}
