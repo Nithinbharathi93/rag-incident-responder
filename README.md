@@ -1,7 +1,6 @@
 # 🛡️ Ops-Sentinel: Enterprise AI-Powered Autonomous Incident Responder
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Node.js](https://img.shields.io/badge/node.js-18+-success.svg)
 ![Status](https://img.shields.io/badge/status-production--ready-brightgreen.svg)
 
@@ -11,14 +10,12 @@
 - [Overview](#overview)
 - [Key Features](#key-features)
 - [Technology Stack](#technology-stack)
-- [Architecture](#architecture)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
 - [Configuration](#configuration)
 - [Contributing](#contributing)
 - [Support](#support)
-- [License](#license)
 
 ---
 
