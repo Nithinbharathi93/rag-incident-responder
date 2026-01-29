@@ -1,9 +1,38 @@
 import express from 'express';
+import multer from 'multer';
 import { initializeIntegrationHandler, shutdownHandler, extractForensicStory, resolveIncidentWithRAG } from './integrationHandler.js';
 import { CONFIG } from './config.js';
+import { ingestDocument } from './services/ingestor.js';
 
 const app = express();
 app.use(express.json());
+const upload = multer({ storage: multer.memoryStorage() }); // Keep PDF in RAM for fast processing
+
+// ============================================
+// ROUTES FOR DOCUMENT INGESTION
+// ============================================
+
+/**
+ * POST /ingest
+ * Expects: multipart/form-data with 'manual' PDF file
+ * Returns: Confirmation of successful ingestion with auto-tagging
+ */
+app.post('/ingest', upload.single('manual'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No PDF provided." });
+
+    // Auto-ingest will now handle tag generation internally
+    await ingestDocument(req.file.buffer, req.file.originalname);
+
+    res.json({ 
+      message: "Ingestion successful with auto-tagging", 
+      file: req.file.originalname 
+    });
+  } catch (error) {
+    console.error(`❌ Ingest endpoint error: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ============================================
 // ROUTES FOR MANUAL INCIDENT RESOLUTION
@@ -90,6 +119,7 @@ app.listen(PORT, () => {
   console.log(`╚════════════════════════════════════════════════════════╝\n`);
   console.log(`✅ HTTP Server running on http://localhost:${PORT}`);
   console.log(`\n📌 Available Endpoints:`);
+  console.log(`   POST /ingest   - Upload PDF documents for ingestion and auto-tagging`);
   console.log(`   POST /resolve  - Manually submit incident logs for RAG resolution`);
   console.log(`   GET  /health   - System health check`);
   console.log(`   GET  /status   - Current monitoring status\n`);
