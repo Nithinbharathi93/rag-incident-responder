@@ -409,13 +409,7 @@ Error: Failed to extract text from PDF
 - **Documentation**: [docs/](./docs/)
 - **Issues**: [GitHub Issues](https://github.com/Nithinbharathi93/rag-incident-responder/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Nithinbharathi93/rag-incident-responder/discussions)
-- **Email**: support@ops-sentinel.io
-
----
-
-## 📜 License
-
-Licensed under the **MIT License**. See [LICENSE](./LICENSE) file for details.
+- **Email**: nithinbharathi9325@gmail.com
 
 ---
 
