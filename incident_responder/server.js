@@ -1,16 +1,28 @@
 import express from 'express';
 import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { initializeIntegrationHandler, shutdownHandler, resolveIncidentWithRAG } from './integrationHandler.js';
 import { CONFIG } from './config.js';
 import { ingestDocument } from './services/ingestor.js';
 import cors from 'cors';
 import { createClient } from 'redis';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(cors());
+// Enable CORS with proper SSE configuration
+app.use(cors({
+  origin: '*',
+  credentials: false,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
+}));
+
+// Serve static files from parent directory (where index.html is located)
+app.use(express.static(path.join(__dirname, '..')));
 
 // ============================================
 // LIVE STREAMING SETUP (SSE)
@@ -24,9 +36,11 @@ const connectedClients = new Set();
  * Establishes a long-lived HTTP connection for live incident updates.
  */
 app.get('/stream', (req, res) => {
+  // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.flushHeaders();
 
   // Add client to the broadcast pool

@@ -1,25 +1,13 @@
 /**
- * FREE RESEARCHER: Fetches documentation from the web using 
- * DuckDuckGo's free interface (no API key required).
+ * DEPRECATED: Web fetching feature has been removed.
+ * The system now uses only existing ingested documents for incident resolution.
+ * 
+ * This file is retained for reference but the fetchWebContext function
+ * is no longer used. The RAG system relies solely on documents
+ * injected via the /ingest endpoint.
  */
+
+// Legacy code removed - use document ingestion instead
 export async function fetchWebContext(errorSnippet) {
-  try {
-    // Target high-authority SRE sites specifically
-    const query = encodeURIComponent(`${errorSnippet} site:stackoverflow.com OR site:github.com OR site:docs.microsoft.com`);
-    const url = `https://api.duckduckgo.com/?q=${query}&format=json&no_html=1&skip_disambig=1`;
-
-    const response = await fetch(url);
-    const data = await response.json();
-
-    // Combine Abstract and Related Topics for context
-    let context = data.AbstractText || "";
-    if (data.RelatedTopics && data.RelatedTopics.length > 0) {
-      context += "\n" + data.RelatedTopics.slice(0, 3).map(t => t.Text).join("\n");
-    }
-
-    return context.length > 10 ? context : null;
-  } catch (err) {
-    console.error("🌐 Web Research Failed:", err.message);
-    return null;
-  }
+  throw new Error("fetchWebContext has been deprecated. Use only ingested documents.");
 }

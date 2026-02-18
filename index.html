@@ -99,43 +99,59 @@
         const container = document.getElementById('incident-container');
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
-        const emptyState = document.getElementById('empty-state');
         const backlogCounter = document.getElementById('backlog-count');
 
-        const eventSource = new EventSource('http://localhost:3000/stream');
+        const eventSource = new EventSource('http://localhost:3001/stream');
 
         eventSource.onopen = () => {
-            statusDot.className = "status-dot bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] pulse";
+            // Replaced 'pulse' with Tailwind's 'animate-pulse'
+            statusDot.className = "status-dot bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-pulse";
             statusText.innerText = "Monitoring Live";
-            statusText.classList.replace('text-slate-400', 'text-emerald-500');
+            
+            // Safely clear old states and apply the active one
+            statusText.classList.remove('text-slate-400', 'text-red-500');
+            statusText.classList.add('text-emerald-500');
         };
 
         eventSource.onmessage = (event) => {
-            if (emptyState) emptyState.remove();
             const data = JSON.parse(event.data);
             
+            // Handle routine backlog broadcasts
             if (data.backlog !== undefined) {
                 backlogCounter.innerText = `${data.backlog} LOGS`;
                 backlogCounter.className = data.backlog > 50 ? "mono text-xl font-medium text-red-500" : "mono text-xl font-medium text-amber-500";
             }
 
-            if (data.type === 'LIVE_INCIDENT') {
+            // Only remove empty state and render when an actual incident arrives
+            if (data.type === 'LIVE_INCIDENT' || data.type === 'MANUAL_RESOLUTION') {
+                const emptyState = document.getElementById('empty-state');
+                if (emptyState) emptyState.remove();
+                
                 renderIncident(data);
             }
         };
 
         eventSource.onerror = () => {
-            statusDot.className = "status-dot bg-red-500";
+            statusDot.className = "status-dot bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]";
             statusText.innerText = "Disconnected";
-            statusText.classList.replace('text-emerald-500', 'text-red-500');
+            
+            // Safely clear old states and apply the disconnected one
+            statusText.classList.remove('text-emerald-500', 'text-slate-400');
+            statusText.classList.add('text-red-500');
         };
 
         function renderIncident(data) {
+            // Safely extract arrays to prevent .map() from throwing errors if properties are missing
+            const tags = data.tags || [];
+            const story = data.forensicStory || [];
+            const sources = data.sources || [];
+            const solution = data.solution || 'No resolution provided.';
+
             const card = document.createElement('div');
             card.className = "incident-card glass-panel rounded-2xl animate-incident";
             
-            const tagsHtml = data.tags.map(t => `<span class="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20 uppercase tracking-tighter">#${t}</span>`).join('');
-            const logsHtml = data.forensicStory.map(l => `<div class="mono text-[11px] py-1 border-b border-white/5 last:border-0 text-slate-500 hover:text-slate-300 transition-colors">${l}</div>`).join('');
+            const tagsHtml = tags.map(t => `<span class="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20 uppercase tracking-tighter">#${t}</span>`).join('');
+            const logsHtml = story.map(l => `<div class="mono text-[11px] py-1 border-b border-white/5 last:border-0 text-slate-500 hover:text-slate-300 transition-colors">${l}</div>`).join('');
 
             card.innerHTML = `
                 <div class="grid grid-cols-1 lg:grid-cols-12">
@@ -154,7 +170,7 @@
                             <div class="flex items-start justify-between mb-6">
                                 <div>
                                     <h4 class="text-white font-bold text-lg leading-tight">Automated Resolution Applied</h4>
-                                    <p class="text-slate-500 text-xs mt-1">Grounding: ${data.sources.join(', ') || 'Global Intelligence'}</p>
+                                    <p class="text-slate-500 text-xs mt-1">Grounding: ${sources.join(', ') || 'Global Intelligence'}</p>
                                 </div>
                                 <div class="bg-blue-500/10 p-2 rounded-lg">
                                     <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
@@ -164,7 +180,7 @@
                             <div class="bg-slate-900/80 rounded-xl p-6 border border-white/5 relative group">
                                 <div class="absolute -top-3 left-4 px-2 bg-slate-900 text-[10px] font-bold text-slate-400 uppercase tracking-widest border border-white/5">Recovery Playbook</div>
                                 <div class="text-slate-300 text-sm leading-relaxed">
-                                    ${data.solution.replace(/\n/g, '<br>')}
+                                    ${solution.replace(/\n/g, '<br>')}
                                 </div>
                             </div>
                         </div>

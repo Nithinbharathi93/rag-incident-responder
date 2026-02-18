@@ -105,26 +105,18 @@ export async function resolveIncidentWithRAG(forensicStory) {
       match_count: 3
     });
 
-    // Check the highest similarity score against the alpha threshold (0.7)
+    // Check the highest similarity score
     const topMatch = matches && matches.length > 0 ? matches[0] : null;
     const confidenceScore = topMatch ? topMatch.similarity : 0; 
 
     let contextSources = [];
-    let isLiveResearch = false;
 
-    // PAPER LOGIC: Trigger Stage 2 if confidence < 0.7 
-    if (confidenceScore >= 0.7) {
+    // Use internal documents only
+    if (matches && matches.length > 0) {
       console.log(`✅ Internal Match Found (Score: ${confidenceScore.toFixed(2)})`);
       contextSources = matches.map(m => m.content);
     } else {
-      // 2. STAGE 2: Agentic Fallback (Active Retrieval) [cite: 126, 127]
-      console.log(`🔍 Confidence Low (${confidenceScore.toFixed(2)}). Activating Stage 2 Live Research...`);
-      const webContext = await fetchWebContext(crashLine);
-      
-      if (webContext) {
-        contextSources = [webContext];
-        isLiveResearch = true;
-      }
+      console.log(`⚠️ No internal document matches found for this incident.`);
     }
 
     // 3. Generate Solution using the selected context [cite: 131]
@@ -133,15 +125,13 @@ export async function resolveIncidentWithRAG(forensicStory) {
       contextSources
     );
 
-    // 4. Self-Learning Loop [cite: 129, 130]
-    if (isLiveResearch && solution && !solution.includes("No playbook found")) {
-      await autoIngestSolution(crashLine, solution);
-    }
+    // 4. Self-Learning Loop - Only for internal docs
+    // (Removed auto-ingestion from web sources)
 
     return {
       solution,
-      tagsUsed: isLiveResearch ? ["live-research"] : ["internal-docs"],
-      sources: isLiveResearch ? ["External Technical Docs"] : [...new Set(matches.map(m => m.metadata.source))],
+      tagsUsed: ["internal-docs"],
+      sources: matches && matches.length > 0 ? [...new Set(matches.map(m => m.metadata.source))] : [],
       documentMatches: contextSources.length,
       confidence: confidenceScore
     };

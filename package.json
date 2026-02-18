@@ -26,6 +26,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "google-it": "^1.6.4",
     "langsmith": "^0.4.10",
     "marked": "^17.0.3",
     "multer": "^2.0.2",

@@ -1,27 +1,43 @@
 import express from 'express';
-import { getFullErrorDocs } from './controller.js';
+import { findResolvingDocuments } from './services/resolverService.js';
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware to parse JSON bodies
 app.use(express.json());
 
-app.post('/get-full-docs', async (req, res) => {
-    const { stack } = req.body;
+app.post('/api/v1/incidents/resolve', async (req, res) => {
+    const { error, stack } = req.body;
 
-    if (!stack) {
-        return res.status(400).json({ error: "Please provide a 'stack' (e.g., node, react)." });
+    // Validation
+    if (!error && !stack) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Bad Request: You must provide either an "error" or "stack" string.' 
+        });
     }
 
     try {
-        const result = await getFullErrorDocs(stack);
-        res.json({
+        console.log(`[API] Received resolution request for error: ${error || 'Unknown'}`);
+        
+        // Fetch documents
+        const resolvingData = await findResolvingDocuments(error, stack);
+        
+        res.status(200).json({
             success: true,
-            stack: stack,
-            url: result.source,
-            full_documentation: result.document
+            data: resolvingData
         });
-    } catch (error) {
-        res.status(404).json({ success: false, message: error.message });
+
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: 'An internal error occurred while fetching resolving documents.',
+            details: err.message
+        });
     }
 });
 
-app.listen(3000, () => console.log("System Ready: http://localhost:3000/get-full-docs"));
+app.listen(PORT, () => {
+    console.log(`[Server] Incident Resolver API running on http://localhost:${PORT}`);
+});
