@@ -95,51 +95,70 @@ async function cleanupResolvedLogs(logsToRemove) {
  */
 export async function resolveIncidentWithRAG(forensicStory) {
   try {
-    // 1. Generate search tags based on the incident
-    const searchTags = await generateSearchTags(forensicStory);
-    const tagsArray = Array.isArray(searchTags) ? searchTags : [searchTags];
-    console.log(`\n🔍 Searching documentation with tags: ${tagsArray.join(', ')}`);
-
-    // 2. Vectorize the crash line (last line in story)
     const crashLine = forensicStory[forensicStory.length - 1];
     const queryEmbedding = await getEmbedding(crashLine);
-
-    // 3. Search Supabase for relevant documentation
+    
+    // 1. STAGE 1: Passive Retrieval (Internal KB)
     const { data: matches, error } = await supabase.rpc('match_document_chunks_with_tags', {
       query_embedding: queryEmbedding,
-      match_threshold: 0.2,
-      match_count: 3,
-      filter_tags: tagsArray
+      match_threshold: 0.1, // Lowered here to "see" the scores, but we filter below
+      match_count: 3
     });
 
-    if (error) {
-      console.warn(`⚠️ RAG search error: ${error.message}`);
-      matches = [];
+    // Check the highest similarity score against the alpha threshold (0.7)
+    const topMatch = matches && matches.length > 0 ? matches[0] : null;
+    const confidenceScore = topMatch ? topMatch.similarity : 0; 
+
+    let contextSources = [];
+    let isLiveResearch = false;
+
+    // PAPER LOGIC: Trigger Stage 2 if confidence < 0.7 
+    if (confidenceScore >= 0.7) {
+      console.log(`✅ Internal Match Found (Score: ${confidenceScore.toFixed(2)})`);
+      contextSources = matches.map(m => m.content);
+    } else {
+      // 2. STAGE 2: Agentic Fallback (Active Retrieval) [cite: 126, 127]
+      console.log(`🔍 Confidence Low (${confidenceScore.toFixed(2)}). Activating Stage 2 Live Research...`);
+      const webContext = await fetchWebContext(crashLine);
+      
+      if (webContext) {
+        contextSources = [webContext];
+        isLiveResearch = true;
+      }
     }
 
-    // 4. Generate solution using LLM with grounding
+    // 3. Generate Solution using the selected context [cite: 131]
     const solution = await getChatResponse(
       forensicStory.join("\n"),
-      matches ? matches.map(m => m.content) : []
+      contextSources
     );
+
+    // 4. Self-Learning Loop [cite: 129, 130]
+    if (isLiveResearch && solution && !solution.includes("No playbook found")) {
+      await autoIngestSolution(crashLine, solution);
+    }
 
     return {
       solution,
-      tagsUsed: tagsArray,
-      sources: matches ? [...new Set(matches.map(m => m.metadata.source))] : [],
-      documentMatches: matches ? matches.length : 0
+      tagsUsed: isLiveResearch ? ["live-research"] : ["internal-docs"],
+      sources: isLiveResearch ? ["External Technical Docs"] : [...new Set(matches.map(m => m.metadata.source))],
+      documentMatches: contextSources.length,
+      confidence: confidenceScore
     };
   } catch (error) {
-    console.error(`❌ RAG resolution error: ${error.message}`);
+    console.error(`❌ RAG Error: ${error.message}`);
     throw error;
   }
 }
 
+// ... existing imports ...
+
 /**
  * PHASE 3: Main integration loop
- * Continuously monitors Redis buffer, extracts forensic data, and resolves with RAG
+ * @param {Function} broadcastFn - The function from server.js to push live incident updates
+ * @param {Function} broadcastBacklogFn - The function from server.js to push backlog updates
  */
-export async function initializeIntegrationHandler() {
+export async function initializeIntegrationHandler(broadcastFn, broadcastBacklogFn) {
   try {
     await redisClient.connect();
     console.log("✅ Connected to Redis");
@@ -148,64 +167,64 @@ export async function initializeIntegrationHandler() {
     process.exit(1);
   }
 
-  // Start monitoring
-  console.log("\n🚀 Final Responder Integration Handler Active...\n");
-  
+  const pendingIncidents = [];
+  let activeSessions = 0;
+  const MAX_CONCURRENT_SESSIONS = 5; // Adjust based on your CPU/GPU cores
+
+  // ========== FAST FETCH LOOP (Unchanged) ==========
   setInterval(async () => {
-    try {
-      const forensicData = await extractForensicStory();
+    const forensicData = await extractForensicStory();
+    if (forensicData) pendingIncidents.push(forensicData);
+  }, 50);
+
+  // ========== CONCURRENT ANALYSIS LOOP ==========
+  setInterval(async () => {
+    // Fill up available sessions until we hit the limit
+    while (activeSessions < MAX_CONCURRENT_SESSIONS && pendingIncidents.length > 0) {
+      const forensicData = pendingIncidents.shift();
       
-      if (forensicData) {
-        console.log(`\n╔════════════════════════════════════════════════════════╗`);
-        console.log(`║           🚨 INCIDENT DETECTED & ANALYZED              ║`);
-        console.log(`╚════════════════════════════════════════════════════════╝`);
-        console.log(`\n📝 Forensic Story (${forensicData.story.length} critical events):`);
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-        
-        forensicData.story.forEach((line, idx) => {
-          // Extract level from log line
-          let icon = "📋";
-          if (line.toUpperCase().includes("FATAL")) icon = "💥";
-          else if (line.toUpperCase().includes("ERROR")) icon = "❌";
-          else if (line.toUpperCase().includes("WARN")) icon = "⚠️";
-          else if (line.toUpperCase().includes("INFO")) icon = "ℹ️";
-          
-          // Truncate long logs for readability
-          const displayLine = line.length > 110 
-            ? line.substring(0, 107) + "..." 
-            : line;
-          
-          console.log(`  ${idx + 1}. ${icon} ${displayLine}`);
-        });
+      activeSessions++; // Claim a session
+      
+      // We run the analysis in an IIFE so it doesn't block the loop
+      (async (data) => {
+        try {
+          const queueDepth = await redisClient.lLen(CONFIG.redis.listName);
+          console.log(`\n🚀 Session ${activeSessions} Started | Backlog: ${queueDepth}`);
 
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+          const resolution = await resolveIncidentWithRAG(data.story);
+          console.log(`\n📋 RAG RESPONSE:\n${resolution.solution}\n`);
+          
+          const incidentPayload = {
+            type: 'LIVE_INCIDENT',
+            solution: resolution.solution,
+            tags: resolution.tagsUsed,
+            sources: resolution.sources,
+            matchesFound: resolution.documentMatches,
+            forensicStory: data.story,
+            backlog: queueDepth,
+            timestamp: new Date().toISOString()
+          };
+          
+          broadcastFn(incidentPayload);
+          console.log(`📡 Solution broadcasted to frontend`);
 
-        // Resolve with RAG
-        const resolution = await resolveIncidentWithRAG(forensicData.story);
-        
-        console.log(`\n💡 RAG Resolution Analysis:`);
-        console.log(`   🏷️  Tags: ${resolution.tagsUsed.join(', ')}`);
-        console.log(`   📚 Documentation matches: ${resolution.documentMatches}`);
-        if (resolution.sources.length > 0) {
-          console.log(`   📖 Sources: ${resolution.sources.join(', ')}`);
+          await cleanupResolvedLogs(data.logsToRemove);
+        } catch (err) {
+          console.error(`❌ Session Error: ${err.message}`);
+        } finally {
+          activeSessions--; // Release session back to the pool
+          console.log(`✅ Session Released. Remaining Active: ${activeSessions}`);
         }
-        console.log(`\n📋 Recommended Solution:`);
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-        console.log(resolution.solution);
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-        
-        // Clean up resolved logs from buffer
-        await cleanupResolvedLogs(forensicData.logsToRemove);
-        
-        console.log(`\n✅ Incident resolution complete, buffer cleaned\n`);
-      }
-    } catch (error) {
-      console.error(`❌ Integration error: ${error.message}`);
+      })(forensicData); 
     }
-  }, CONFIG.buffer.releaseRateMs);
+  }, 100); // Check for available sessions every 100ms
 }
+
+// ... rest of the file ...
 
 export async function shutdownHandler() {
   await redisClient.quit();
   console.log("\n✅ Integration handler shutdown complete");
 }
+
+

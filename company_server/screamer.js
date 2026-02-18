@@ -100,26 +100,35 @@ const incidents = [
   }
 ];
 
-async function runScenario() {
-  // Pick random incident or cycle through them
-  const scenarioIndex = Math.floor(Math.random() * incidents.length);
-  const scenario = incidents[scenarioIndex];
+/**
+ * 📢 ETERNAL SCREAMER
+ * Simulates a server in a total meltdown loop.
+ */
+async function runEternalScreamer() {
+  console.log("🔥 ETERNAL SCREAMER STARTED. Injecting logs line by line...");
+  
+  let totalInjected = 0;
 
-  console.log(`\n🎬 Screamer: Injecting ${scenario.name}...`);
-  console.log(`📊 ${scenario.logs.length} log events with causal chain\n`);
-
-  // Inject all logs
-  for (const log of scenario.logs) {
-    await client.rPush(CONFIG.redis.listName, log);
-    // Add small delay to simulate real-time logging
-    await new Promise(resolve => setTimeout(resolve, 50));
+  while (true) {
+    const scenario = incidents[Math.floor(Math.random() * incidents.length)];
+    
+    // Inject logs line-by-line with 500ms delay (2 logs per second)
+    for (const log of scenario.logs) {
+      await client.rPush(CONFIG.redis.listName, log);
+      totalInjected++;
+      
+      // Print what log is being injected
+      if (CONFIG.screamer.printInjectedLogs) {
+        console.log(`📝 [${totalInjected}] ${log}`);
+      }
+      
+      // 500ms delay = 2 logs per second
+      await new Promise(r => setTimeout(r, 125)); 
+    }
+    
+    // Brief pause between scenarios
+    await new Promise(r => setTimeout(r, 1000)); 
   }
-
-  console.log(`✅ Injection complete. Waiting for incident_responder to process...\n`);
-  await client.quit();
 }
 
-runScenario().catch(err => {
-  console.error("❌ Error:", err);
-  process.exit(1);
-});
+runEternalScreamer().catch(console.error);
