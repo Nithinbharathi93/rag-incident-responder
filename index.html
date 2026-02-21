@@ -14,7 +14,6 @@
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: #020617; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         
-        /* Custom UI Textures */
         .glass-panel {
             background: var(--glass);
             backdrop-filter: blur(12px);
@@ -104,29 +103,21 @@
         const eventSource = new EventSource('http://localhost:3001/stream');
 
         eventSource.onopen = () => {
-            // Replaced 'pulse' with Tailwind's 'animate-pulse'
             statusDot.className = "status-dot bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-pulse";
             statusText.innerText = "Monitoring Live";
-            
-            // Safely clear old states and apply the active one
             statusText.classList.remove('text-slate-400', 'text-red-500');
             statusText.classList.add('text-emerald-500');
         };
 
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            
-            // Handle routine backlog broadcasts
             if (data.backlog !== undefined) {
                 backlogCounter.innerText = `${data.backlog} LOGS`;
                 backlogCounter.className = data.backlog > 50 ? "mono text-xl font-medium text-red-500" : "mono text-xl font-medium text-amber-500";
             }
-
-            // Only remove empty state and render when an actual incident arrives
             if (data.type === 'LIVE_INCIDENT' || data.type === 'MANUAL_RESOLUTION') {
                 const emptyState = document.getElementById('empty-state');
                 if (emptyState) emptyState.remove();
-                
                 renderIncident(data);
             }
         };
@@ -134,24 +125,57 @@
         eventSource.onerror = () => {
             statusDot.className = "status-dot bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]";
             statusText.innerText = "Disconnected";
-            
-            // Safely clear old states and apply the disconnected one
             statusText.classList.remove('text-emerald-500', 'text-slate-400');
             statusText.classList.add('text-red-500');
         };
 
+        // FEEDBACK HANDLER: Communicates with backend to promote solutions to Supabase
+async function handleFeedback(isApproved, buttonElement, solutionData) {
+    const card = buttonElement.closest('.incident-card');
+    if (!isApproved) { card.remove(); return; }
+
+    try {
+        await fetch('http://localhost:3001/approve-solution', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                solution: solutionData.solution,
+                tags: solutionData.tags,
+                // CRUCIAL: Send the logs that caused the problem
+                forensicStory: solutionData.forensicStory 
+            })
+        });
+
+                if (response.ok) {
+                    // Update UI to show success
+                    const controls = card.querySelector('.feedback-controls');
+                    controls.innerHTML = `
+                        <span class="flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded border border-emerald-500/20">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                            Promoted to KB
+                        </span>
+                    `;
+                }
+            } catch (err) { console.error(err); }
+        }
+
         function renderIncident(data) {
-            // Safely extract arrays to prevent .map() from throwing errors if properties are missing
             const tags = data.tags || [];
             const story = data.forensicStory || [];
             const sources = data.sources || [];
             const solution = data.solution || 'No resolution provided.';
+
+            // Determine if this came from Active Retrieval (External)
+            const isExternal = tags.includes('external-web');
 
             const card = document.createElement('div');
             card.className = "incident-card glass-panel rounded-2xl animate-incident";
             
             const tagsHtml = tags.map(t => `<span class="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20 uppercase tracking-tighter">#${t}</span>`).join('');
             const logsHtml = story.map(l => `<div class="mono text-[11px] py-1 border-b border-white/5 last:border-0 text-slate-500 hover:text-slate-300 transition-colors">${l}</div>`).join('');
+
+            // Serialize data for the click handler
+            const safeData = JSON.stringify(data).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
 
             card.innerHTML = `
                 <div class="grid grid-cols-1 lg:grid-cols-12">
@@ -169,7 +193,9 @@
                         <div>
                             <div class="flex items-start justify-between mb-6">
                                 <div>
-                                    <h4 class="text-white font-bold text-lg leading-tight">Automated Resolution Applied</h4>
+                                    <h4 class="text-white font-bold text-lg leading-tight">
+                                        ${isExternal ? 'External Insight Retrieved' : 'Automated Resolution Applied'}
+                                    </h4>
                                     <p class="text-slate-500 text-xs mt-1">Grounding: ${sources.join(', ') || 'Global Intelligence'}</p>
                                 </div>
                                 <div class="bg-blue-500/10 p-2 rounded-lg">
@@ -187,10 +213,24 @@
 
                         <div class="mt-8 flex items-center justify-between">
                             <div class="flex gap-2">${tagsHtml}</div>
-                            <button class="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-2">
-                                Export Logs
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                            </button>
+                            
+                            <div class="feedback-controls flex items-center gap-3">
+                                ${isExternal ? `
+                                    <button onclick='handleFeedback(true, this, ${safeData})' 
+                                            class="px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-500/20 transition-all">
+                                        Approve & Save
+                                    </button>
+                                    <button onclick='handleFeedback(false, this, null)' 
+                                            class="px-3 py-1.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded text-[10px] font-bold uppercase tracking-wider hover:bg-red-500/20 transition-all">
+                                        Reject
+                                    </button>
+                                ` : `
+                                    <button class="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors flex items-center gap-2">
+                                        Export Logs
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                                    </button>
+                                `}
+                            </div>
                         </div>
                     </div>
                 </div>

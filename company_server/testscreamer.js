@@ -15,19 +15,23 @@ async function injectSingleIncident() {
     console.log("🔗 Connected to Redis for test injection...");
 
     const testScenario = {
-      name: "Memory Exhaustion - Redis OOM",
-      logs: [
-        "INFO [14:22:01] Server startup: Node.js v18.16.0, PID=4521",
-        "INFO [14:22:15] Session cache initialized, TTL: 3600s",
-        "WARN [14:25:42] Redis memory usage: 85% (7.15 GB / 8.4 GB)",
-        "WARN [14:27:15] Redis memory usage: 92% (7.73 GB / 8.4 GB), eviction policy: allkeys-lru",
-        "ERROR [14:28:12] Redis: MISCONF Redis is configured to save RDB snapshots",
-        "ERROR [14:29:01] Cache write failed for key 'user_batch_checkpoint_1': OOM command not allowed",
-        "WARN [14:29:15] Queue backpressure detected: 12,000 jobs pending",
-        "ERROR [14:29:45] Failed to write session data: Redis OOM, rejecting write commands",
-        "FATAL [14:30:12] Service degradation: FATAL - READONLY You can't write against a read only replica"
-      ]
-    };
+   name: "Memory Leak and GC Pressure",
+    logs: [
+      "INFO [11:00:00] Node.js Heap: 250 MB / 2 GB max, GC interval: 50s",
+      "INFO [11:00:10] WebSocket connection manager initialized, max connections: 10,000",
+      "INFO [11:05:20] Active connections: 2,340, memory per connection: ~0.8 MB",
+      "WARN [11:15:30] Heap size increased to 600 MB, GC pause time: 120ms",
+      "INFO [11:25:40] Cumulative connected clients: 4,200, heap: 950 MB",
+      "WARN [11:35:50] Heap size: 1.3 GB (65% of max), GC pause times increasing: 200ms, 240ms, 180ms",
+      "WARN [11:45:00] High GC frequency: 5 collections in last minute, avg pause: 210ms",
+      "WARN [11:55:10] Heap fragmentation detected: 42% of heap is unreachable memory",
+      "ERROR [12:05:20] GC overhead limit exceeded: 98% of CPU time spent in garbage collection",
+      "WARN [12:15:30] Memory growth trend: +50 MB every 10 minutes, estimated OOM in 35 minutes",
+      "ERROR [12:25:40] Unable to allocate buffer: cannot allocate 128 MB block, heap limit approaching",
+      "WARN [12:30:00] Event loop lag detected: max 3.5s, application unresponsive",
+      "FATAL [12:35:15] FATAL: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory (1924 MB)"
+    ]
+  };
 
     console.log(`🚀 Injecting Scenario: ${testScenario.name}`);
 

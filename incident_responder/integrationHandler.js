@@ -13,17 +13,14 @@ const HISTORY_KEY = "final_responder_history";
 
 /**
  * PHASE 1: Extract forensic story from logs (Screamer + Buffer Handler)
- * Returns: Array of error lines with causal chain + history indices for cleanup
  */
 export async function extractForensicStory() {
   const logLine = await redisClient.lPop(CONFIG.redis.listName);
   if (!logLine) return null;
 
-  // Maintain rolling history
   await redisClient.lPush(HISTORY_KEY, logLine);
   await redisClient.lTrim(HISTORY_KEY, 0, CONFIG.buffer.historyWindowSize - 1);
 
-  // Check if this is a CRITICAL event (case-insensitive for complex logs)
   const isCritical = CONFIG.buffer.severity.CRITICAL.some(s => 
     logLine.toUpperCase().includes(s.toUpperCase())
   );
@@ -33,10 +30,7 @@ export async function extractForensicStory() {
     return null;
   }
 
-  // Extract the forensic chain
   const fullHistory = await redisClient.lRange(HISTORY_KEY, 0, -1);
-  
-  // Find the first causal signal by searching backwards
   let pivotIndex = -1;
   for (let i = 0; i < fullHistory.length; i++) {
     if (CONFIG.buffer.causalSignals.some(signal => 
@@ -50,16 +44,14 @@ export async function extractForensicStory() {
   let logsToRemove = [];
 
   if (pivotIndex !== -1) {
-    // Build the causal chain: from cause to crash, filtered for signals only
     const allChainLogs = fullHistory.slice(0, pivotIndex + 1).reverse();
     forensicStory = allChainLogs.filter(line => {
       const isSignal = [...CONFIG.buffer.severity.CRITICAL, ...CONFIG.buffer.severity.ERROR, ...CONFIG.buffer.causalSignals]
         .some(keyword => line.toUpperCase().includes(keyword.toUpperCase()));
       return isSignal;
     });
-    logsToRemove = allChainLogs; // Store all logs in chain for cleanup
+    logsToRemove = allChainLogs;
   } else {
-    // Isolated crash
     forensicStory = [logLine];
     logsToRemove = [logLine];
   }
@@ -72,82 +64,60 @@ export async function extractForensicStory() {
 }
 
 /**
- * PHASE 2.5: Clean up resolved logs from Redis history
- * Removes the resolved logs from both the history and main buffer
+ * PHASE 2: Resolve incident using RAG service
+ * UPDATED: Uses rich story querying and metadata checking
  */
-async function cleanupResolvedLogs(logsToRemove) {
-  try {
-    if (!logsToRemove || logsToRemove.length === 0) return;
-
-    // Remove logs from the history
-    for (const log of logsToRemove) {
-      await redisClient.lRem(HISTORY_KEY, 1, log);
-    }
-
-    console.log(`🧹 Cleaned up ${logsToRemove.length} resolved logs from buffer`);
-  } catch (error) {
-    console.error(`⚠️ Cleanup error: ${error.message}`);
-  }
-}
-
 /**
  * PHASE 2: Resolve incident using RAG service
- * Takes forensic story and returns AI-generated solution
+ * STRATEGY: Exhaust internal documentation before considering external retrieval.
+ */
+/**
+ * PHASE 2: Resolve incident using RAG service
+ * STRATEGY: Hybrid Search (Embedding + Metadata Tags)
  */
 export async function resolveIncidentWithRAG(forensicStory) {
   try {
-    const crashLine = forensicStory[forensicStory.length - 1];
-    const queryEmbedding = await getEmbedding(crashLine);
+    // 1. Generate search tags from the whole story to guide the search
+    const searchTags = await generateSearchTags(forensicStory);
+    const queryText = forensicStory.slice(-5).join("\n");
+    const queryEmbedding = await getEmbedding(queryText);
     
-    // 1. STAGE 1: Passive Retrieval (Internal KB)
+    // 2. PRIMARY SEARCH: Search documentation matching the embedding AND the tags
+    // Note: This assumes your Supabase RPC 'match_document_chunks_with_tags' 
+    // is set up to handle a tags array.
     const { data: matches } = await supabase.rpc('match_document_chunks_with_tags', {
       query_embedding: queryEmbedding,
-      match_threshold: 0.1, 
-      match_count: 3
+      match_threshold: 0.05, // Ultra-low threshold to allow tag matching to lead
+      match_count: 5,
+      filter_tags: searchTags // Pass the tags to the search
     });
 
     const topMatch = matches && matches.length > 0 ? matches[0] : null;
     const confidenceScore = topMatch ? topMatch.similarity : 0;
 
     let contextSources = [];
-    let tagsUsed = ["internal-docs"];
-
-    // Populate context from internal docs if they exist
     if (matches && matches.length > 0) {
-      console.log(`✅ Internal Match Found (Score: ${confidenceScore.toFixed(2)})`);
+      console.log(`✅ Internal Docs Found via Hybrid Search (Score: ${confidenceScore.toFixed(2)})`);
       contextSources = matches.map(m => m.content);
     }
 
-    // 2. STAGE 2: Active Retrieval (External Fallback)
-    // Threshold check: If internal docs are weak (< 0.5 similarity), fetch from Stack Overflow
-    if (confidenceScore < 0.5) {
-      console.log(`📡 Low internal confidence (${confidenceScore.toFixed(2)}). Triggering Active Retrieval...`);
-      
-      // Generate search tags using your AI controller
-      const searchTags = await generateSearchTags(forensicStory);
-      
-      // Fetch the high-quality answer from Stack Overflow
+    // 3. EMERGENCY ONLY: Only hit the web if we have ZERO context from docs
+    if (contextSources.length === 0) {
+      console.log(`📡 DOCUMENTATION EXHAUSTED. Emergency Web Retrieval...`);
+      const crashLine = forensicStory[forensicStory.length - 1];
       const externalKnowledge = await fetchStackOverflowSolution(crashLine, searchTags);
 
       if (externalKnowledge) {
-        console.log("🌐 External Knowledge successfully retrieved from Stack Overflow");
-        contextSources.push(`EXTERNAL KNOWLEDGE (Stack Overflow):\n${externalKnowledge}`);
-        tagsUsed.push("external-web", ...searchTags);
-      } else {
-        console.log("⚠️ No suitable external solution found.");
+        contextSources.push(`EXTERNAL FALLBACK:\n${externalKnowledge}`);
       }
     }
 
-    // 3. Generate Solution using Hybrid Context
-    const solution = await getChatResponse(
-      forensicStory.join("\n"),
-      contextSources
-    );
+    const solution = await getChatResponse(forensicStory.join("\n"), contextSources);
 
     return {
       solution,
-      tagsUsed: tagsUsed,
-      sources: matches && matches.length > 0 ? [...new Set(matches.map(m => m.metadata.source))] : [],
+      tagsUsed: searchTags,
+      sources: matches?.length > 0 ? [...new Set(matches.map(m => m.metadata.source))] : ["External"],
       documentMatches: contextSources.length,
       confidence: confidenceScore
     };
@@ -157,13 +127,24 @@ export async function resolveIncidentWithRAG(forensicStory) {
   }
 }
 
-// ... existing imports ...
-
 /**
- * PHASE 3: Main integration loop
- * @param {Function} broadcastFn - The function from server.js to push live incident updates
- * @param {Function} broadcastBacklogFn - The function from server.js to push backlog updates
+ * PHASE 2.5: Clean up resolved logs
+ * Ensure this function is EXPORTED and within the file scope
  */
+export async function cleanupResolvedLogs(logsToRemove) {
+  try {
+    if (!logsToRemove || logsToRemove.length === 0) return;
+    for (const log of logsToRemove) {
+      await redisClient.lRem(HISTORY_KEY, 1, log);
+    }
+    console.log(`🧹 Cleaned up ${logsToRemove.length} logs`);
+  } catch (error) {
+    console.error(`⚠️ Cleanup error: ${error.message}`);
+  }
+}
+
+// ... rest of the file (initializeIntegrationHandler, cleanupResolvedLogs, etc.)
+
 export async function initializeIntegrationHandler(broadcastFn, broadcastBacklogFn) {
   try {
     await redisClient.connect();

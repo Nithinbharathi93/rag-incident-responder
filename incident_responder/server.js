@@ -7,6 +7,7 @@ import { CONFIG } from './config.js';
 import { ingestDocument } from './services/ingestor.js';
 import cors from 'cors';
 import { createClient } from 'redis';
+import { ingestManualEntry } from './services/ingestor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -146,6 +147,17 @@ app.get('/status', (req, res) => {
     bufferReleaseRateMs: CONFIG.buffer.releaseRateMs,
     timestamp: new Date().toISOString()
   });
+});
+
+app.post('/approve-solution', async (req, res) => {
+  try {
+    const { solution, tags, forensicStory } = req.body;
+    // We send both the problem (story) and the answer (solution)
+    await ingestManualEntry(solution, "Human Verified", tags, forensicStory);
+    res.json({ status: "success" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ============================================
