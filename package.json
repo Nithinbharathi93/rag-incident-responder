@@ -5,7 +5,9 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node incident_responder/server.js",
+    "responder": "node --watch incident_responder/server.js",
+    "screamer": "node company_server/flush_db.js && node company_server/screamer.js"
   },
   "repository": {
     "type": "git",
