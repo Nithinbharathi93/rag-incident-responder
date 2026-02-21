@@ -81,12 +81,5 @@ incident_responder/
 
 ---
 
-## 🙋 FAQ
-
-**Q: Why did the system switch to Active Retrieval even though I have docs?** A: This usually happens if the log signal is too generic. We've fixed this by implementing **Query Expansion**, which uses the last 5 relevant logs to find deeper semantic matches in your documents.
-
-**Q: Can I disable web search entirely?** A: Yes. Set the `confidenceScore` trigger to `0.00` in `integrationHandler.js` to ensure the system only ever speaks from your verified docs.
-
----
 
 **Built with ❤️ for the SRE community. Your PaaS, now fully autonomous.**
