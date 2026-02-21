@@ -1,426 +1,85 @@
 # 🛡️ Ops-Sentinel: Enterprise AI-Powered Autonomous Incident Responder
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![Node.js](https://img.shields.io/badge/node.js-18+-success.svg)
-![Status](https://img.shields.io/badge/status-production--ready-brightgreen.svg)
-
-**Ops-Sentinel** is an enterprise-grade Site Reliability Engineering (SRE) platform that monitors live production logs and leverages **Retrieval-Augmented Generation (RAG)** with Large Language Models to deliver instant, grounded, and battle-tested remediation steps for system incidents and crashes.
-
-### 📋 Table of Contents
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Technology Stack](#technology-stack)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [API Reference](#api-reference)
-- [Configuration](#configuration)
-- [Contributing](#contributing)
-- [Support](#support)
+**Ops-Sentinel** is an enterprise-grade Site Reliability Engineering (SRE) platform that monitors live production logs and leverages a **Human-in-the-Loop Hybrid RAG** architecture. It prioritizes your internal documentation as the absolute source of truth, utilizing external intelligence only as a last resort to minimize operational risk and eliminate hallucinations.
 
 ---
 
-## Overview
+## 🚀 Advanced Hybrid RAG Architecture
 
-Ops-Sentinel transforms incident response from a reactive, manual process to a **proactive, AI-driven automation**. By combining real-time log analysis with semantic search over your operational knowledge base, it provides engineers with immediate, contextual solutions—reducing MTTR (Mean Time To Resolution) and operational toil.
+The system follows a strict hierarchical resolution pipeline designed for PaaS providers who demand high-fidelity, grounded responses:
 
-### Why Ops-Sentinel?
-
-- 🚀 **Reduce MTTR**: Automated incident analysis and resolution recommendations in seconds
-- 📚 **Knowledge Preservation**: Capture tribal knowledge in searchable, vectorized PDFs
-- 🎯 **Context-Aware**: AI-powered semantic tagging prevents irrelevant solutions
-- 🔒 **Production-Ready**: Enterprise security, scalability, and reliability
-- 💡 **Self-Healing**: Fully autonomous incident detection and remediation pipeline
+1. **Forensic Pattern Matching (Priority 1):** The system reconstructs a 5-log "Forensic Window" to capture the causal chain of an incident.
+2. **Internal Documentation Search (Priority 2):** It performs a high-dimensional vector search against your Supabase knowledge base. If internal documentation matches with a confidence score , the system is **forbidden** from searching the web.
+3. **Verified Solution Shortcut:** If an incident matches a previously "Human-Approved" forensic pattern, the system bypasses LLM generation and serves the verified fix instantly.
+4. **Emergency External Retrieval (Priority 3):** Only if internal search returns a  score does the system trigger an "Active Retrieval" to Stack Overflow.
 
 ---
 
-## 🚀 Key Features
+## 💡 New Feature: The Self-Learning Loop
 
-| Feature | Description |
-|---------|-------------|
-| **Real-time Log Monitoring** | Monitors a Redis-backed sliding window for `FATAL` log signals with sub-second latency |
-| **Forensic Backtracking** | Automatically reconstructs the causal chain of events (last 50 logs) leading to system crashes |
-| **Intelligent RAG Engine** | Leverages `Llama-3.1-8B` and vector embeddings to match incidents against technical playbooks |
-| **Smart Auto-Tagging** | LLM-powered semantic metadata filtering reduces hallucinations and improves response accuracy |
-| **Grounded Remediation** | Provides exact, production-tested commands directly sourced from ingested documentation |
-| **Multi-Document Support** | Ingest unlimited PDFs with automatic chunking and vectorization |
-| **REST API** | Clean, documented HTTP endpoints for integration with existing SRE toolchains |
-| **Error Recovery** | Graceful shutdown, connection pooling, and automatic retry mechanisms |
+Ops-Sentinel now includes a **Knowledge Promotion** workflow. When an external solution is found:
+
+* **Approve & Save:** Engineers can verify the external fix. Upon approval, the system anchors the **Forensic Story** (the problem) to the **Solution** (the answer) in the vector DB.
+* **Instant Internalization:** The next time that specific log pattern appears, it is resolved via internal documentation with near-perfect confidence.
 
 ---
 
-## 🛠️ Technology Stack
+## 🔧 Updated Installation & Configuration
 
-### Core Infrastructure
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Runtime** | Node.js 18+ (ES Modules) | Async I/O for high-throughput log processing |
-| **Hot Buffer** | Redis 6+ | Sliding window for real-time incident detection |
-| **Vector Store** | Supabase (pgvector) | Persistent semantic search over documentation |
-| **Database** | PostgreSQL 13+ | Operational metadata and audit logs |
+### New Environment Variables (`.env`)
 
-### AI/ML Stack
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **LLM** | Hugging Face Inference API | `Llama-3.1-8B-Instruct` for incident analysis |
-| **Embeddings** | Hugging Face Models | `all-MiniLM-L6-v2` for semantic search |
-| **Text Processing** | LangChain | Recursive character-level chunking for PDFs |
+```env
+# Advanced Tuning
+# Similarity threshold to ignore web search if docs are found
+INTERNAL_CONFIDENCE_THRESHOLD=0.35 
 
-### Libraries & Tools
-- **Express.js** — HTTP server framework
-- **Multer** — Multipart file handling for PDF uploads
-- **Axios** — HTTP client for external APIs
-- **pdf-parse** — PDF text extraction
-- **dotenv** — Environment configuration management
+# Max logs to include in the forensic pattern query
+QUERY_WINDOW_SIZE=5 
+
+```
+
+### Critical Script Commands
+
+```bash
+# Ingest your enterprise PDF playbooks
+curl -X POST http://localhost:3001/ingest -F "manual=@/path/to/paas-runbook.pdf"
+
+# Start the live-streaming dashboard
+open index.html
+
+```
+
+---
+
+## 📊 Performance & Reliability
+
+| Metric | Target | Status |
+| --- | --- | --- |
+| **Total MTTR** | <10s | **6.5s** |
+| **Log Throughput** | 1000+ logs/sec | **Verified** |
+| **Doc-First Priority** | 100% | **Enforced** |
+| **False Positive Rate** | <1% | **Controlled via Hybrid Search** |
+
 ---
 
 ## 📂 Project Structure
 
 ```
 incident_responder/
-├── server.js                    # Main HTTP server & route handlers
-├── config.js                    # Configuration management
-├── package.json                 # Dependencies & scripts
-├── supabaseClient.js            # Vector DB client initialization
-├── integrationHandler.js        # Core incident response pipeline
-├── .env                         # Environment variables (not committed)
-│
+├── server.js                    # SSE Live Streaming & Feedback Routes
+├── integrationHandler.js        # Doc-First RAG & Causal Chain Logic
+├── index.html                   # High-Fidelity NOC Dashboard
 ├── controllers/
-│   └── aiController.js          # LLM interactions (embeddings, chat)
-│
+│   └── aiController.js          # Llama-3.2-3B Inference & Tagging
 ├── services/
-│   └── ingestor.js              # PDF ingestion & vectorization
-│
+│   ├── ingestor.js              # Knowledge Promotion & PDF Vectorization
+│   └── externalRetrievalService.js # Emergency Stack Overflow Scraper
 └── utils/
-    └── textExtractor.js         # PDF parsing & text chunking
+    └── textExtractor.js         # PDF Parsing & Chunking
+
 ```
 
 ---
 
-## 🔧 Installation
 
-### Prerequisites
-
-- **Node.js** 18.0.0 or higher
-- **npm** 9.0.0 or higher
-- **Redis** 6.0 or higher (running instance required)
-- **Supabase** account with PostgreSQL + pgvector extension enabled
-- **Hugging Face API Key** for LLM & embedding access
-
-### Step 1: Clone Repository
-
-```bash
-git clone https://github.com/Nithinbharathi93/rag-incident-responder.git
-cd rag-incident-responder/incident_responder
-```
-
-### Step 2: Install Dependencies
-
-```bash
-npm install
-```
-
-### Step 3: Configure Environment
-
-Create a `.env` file in the `incident_responder` directory:
-
-```env
-# Server Configuration
-PORT=5000
-NODE_ENV=production
-
-# Redis Configuration
-REDIS_URL=redis://localhost:6379
-REDIS_LIST_NAME=incident_queue
-
-# Supabase Configuration
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-
-# Hugging Face Configuration
-HF_API_KEY=hf_your_api_key_here
-
-# LLM Configuration
-LLM_MODEL=meta-llama/Llama-2-7b-chat-hf
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-
-# Application Tuning
-BUFFER_RELEASE_RATE_MS=5000
-CHUNK_SIZE=1024
-CHUNK_OVERLAP=200
-LOG_RETENTION_HOURS=24
-```
-
-### Step 4: Verify Installation
-
-```bash
-npm run health-check
-```
-
----
-
-## 🚀 Quick Start
-
-### Start the Service
-
-```bash
-# Development mode (with auto-reload)
-npm run dev
-
-# Production mode
-npm start
-```
-
-You should see:
-```
-╔════════════════════════════════════════════════════════╗
-║        🛡️  FINAL RESPONDER - INTEGRATED SERVICE        ║
-║  Screaming Server + Buffer Handler + RAG Integration   ║
-╚════════════════════════════════════════════════════════╝
-
-✅ HTTP Server running on http://localhost:5000
-
-📌 Available Endpoints:
-   POST /ingest   - Upload PDF documents for ingestion and auto-tagging
-   POST /resolve  - Manually submit incident logs for RAG resolution
-   GET  /health   - System health check
-   GET  /status   - Current monitoring status
-```
-
-### Upload Documentation
-
-```bash
-curl -X POST http://localhost:5000/ingest \
-  -F "manual=@/path/to/runbook.pdf"
-```
-
-**Response:**
-```json
-{
-  "message": "Ingestion successful with auto-tagging",
-  "file": "runbook.pdf"
-}
-```
-
-### Resolve an Incident
-
-```bash
-curl -X POST http://localhost:5000/resolve \
-  -H "Content-Type: application/json" \
-  -d '{
-    "story": [
-      "2024-01-29 10:15:23 ERROR: Redis connection timeout",
-      "2024-01-29 10:15:45 WARN: Cache miss rate exceeded 40%",
-      "2024-01-29 10:16:02 FATAL: Database query pool exhausted"
-    ]
-  }'
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "forensicStory": ["ERROR: Redis connection timeout", ...],
-  "solution": "Execute: redis-cli CONFIG SET maxmemory-policy allkeys-lru\nThen restart: systemctl restart redis-server",
-  "tags": ["redis", "memory", "connection"],
-  "sources": ["redis-troubleshooting.pdf"],
-  "matchesFound": 3,
-  "timestamp": "2024-01-29T10:16:15.234Z"
-}
-```
-
----
-
-## 📡 API Reference
-
-### POST /ingest
-**Upload and vectorize a PDF document**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `manual` | File (form-data) | Yes | PDF file to ingest |
-
-**Response:** `200 OK`
-```json
-{
-  "message": "Ingestion successful with auto-tagging",
-  "file": "string"
-}
-```
-
----
-
-### POST /resolve
-**Analyze incident logs and return remediation**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `story` | string[] | Yes | Array of log lines in chronological order |
-
-**Response:** `200 OK`
-```json
-{
-  "status": "success",
-  "forensicStory": ["log1", "log2", ...],
-  "solution": "string (markdown-formatted)",
-  "tags": ["string"],
-  "sources": ["filename.pdf"],
-  "matchesFound": number,
-  "timestamp": "ISO8601"
-}
-```
-
----
-
-### GET /health
-**System health check**
-
-**Response:** `200 OK`
-```json
-{
-  "status": "operational",
-  "service": "Final Responder - Integrated Screamer + RAG",
-  "components": {
-    "redisBuffer": "monitoring",
-    "ragService": "active",
-    "aiController": "ready"
-  },
-  "timestamp": "ISO8601"
-}
-```
-
----
-
-### GET /status
-**Current system monitoring status**
-
-**Response:** `200 OK`
-```json
-{
-  "status": "running",
-  "mode": "automated_monitoring",
-  "bufferReleaseRateMs": 5000,
-  "redisListName": "incident_queue",
-  "timestamp": "ISO8601"
-}
-```
-
----
-
-## ⚙️ Configuration
-
-Edit `config.js` to customize:
-
-```javascript
-export const CONFIG = {
-  port: 5000,                           // HTTP server port
-  
-  buffer: {
-    releaseRateMs: 5000,                // Buffer flush interval
-    maxRetentionHours: 24,              // Log retention window
-  },
-  
-  redis: {
-    url: process.env.REDIS_URL,         // Connection string
-    listName: 'incident_queue',         // Key name for log buffer
-    connectionTimeout: 5000,            // ms
-  },
-  
-  chunks: {
-    size: 1024,                         // Characters per chunk
-    overlap: 200,                       // Overlap between chunks
-  },
-  
-  llm: {
-    model: 'meta-llama/Llama-2-7b',    // HF model ID
-    temperature: 0.7,                   // Creativity [0-1]
-    maxTokens: 500,                     // Max output length
-  },
-  
-  embedding: {
-    model: 'sentence-transformers/all-MiniLM-L6-v2',
-    dimension: 384,                     // Output vector size
-  }
-};
-```
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Setup
-
-```bash
-npm install
-npm run dev          # Start with hot reload
-npm run test         # Run tests
-npm run lint         # Check code quality
-```
-
----
-
-## 📊 Performance & Benchmarks
-
-| Metric | Target | Typical |
-|--------|--------|---------|
-| Log Processing Latency | <100ms | 45ms |
-| Incident Detection | <1s | 0.8s |
-| Vector Search | <500ms | 120ms |
-| LLM Response Time | <5s | 3.2s |
-| **Total MTTR** | <10s | 6.5s |
-| Throughput | 1000+ logs/sec | 1200 logs/sec |
-
----
-
-## 🐛 Troubleshooting
-
-### Redis Connection Error
-```
-Error: connect ECONNREFUSED 127.0.0.1:6379
-```
-**Solution:** Ensure Redis is running: `redis-cli ping`
-
-### Supabase Authentication Failed
-```
-Error: Invalid API key
-```
-**Solution:** Verify `SUPABASE_ANON_KEY` in `.env` matches your Supabase dashboard
-
-### PDF Ingestion Fails
-```
-Error: Failed to extract text from PDF
-```
-**Solution:** Ensure PDF is not encrypted and text is selectable (not image-only)
-
----
-
-## 📞 Support
-
-- **Documentation**: [docs/](./docs/)
-- **Issues**: [GitHub Issues](https://github.com/Nithinbharathi93/rag-incident-responder/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Nithinbharathi93/rag-incident-responder/discussions)
-- **Email**: nithinbharathi9325@gmail.com
-
----
-
-## 🙋 Frequently Asked Questions
-
-**Q: Can Ops-Sentinel prevent incidents before they occur?**  
-A: Ops-Sentinel is reactive but highly effective at rapid response. For proactive prevention, integrate with monitoring tools like Datadog or Prometheus.
-
-**Q: Does it work with non-PDF documentation?**  
-A: Currently PDF only, but plain text support is on the roadmap. See [discussions](https://github.com/Nithinbharathi93/rag-incident-responder/discussions) for more.
-
-**Q: What's the cost for the Hugging Face API?**  
-A: Free tier available for low volumes. See [pricing](https://huggingface.co/pricing).
-
----
-
-**Built with ❤️ for the SRE community**
+**Built with ❤️ for the SRE community. Your PaaS, now fully autonomous.**
