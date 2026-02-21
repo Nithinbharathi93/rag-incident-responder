@@ -80,6 +80,61 @@ const incidents = [
       "FATAL [12:35:15] FATAL: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory (1924 MB)"
     ]
   },
+
+  {
+    name: "Routine Traffic Spike & Auto-scaling",
+    logs: [
+      "INFO [10:00:00] Traffic monitoring: baseline requests at 450 req/sec",
+      "INFO [10:05:15] Load balancer reporting steady traffic increase: 850 req/sec",
+      "INFO [10:10:00] API Gateway: peak hour traffic detected, adjusting rate limits",
+      "WARN [10:12:30] Auto-scaler: Average CPU utilization at 72% (Threshold: 70%)",
+      "INFO [10:13:00] Auto-scaler: Provisioning 2 additional application nodes",
+      "INFO [10:14:15] Node node-app-04 initialized successfully, starting application server",
+      "INFO [10:14:20] Node node-app-05 initialized successfully, starting application server",
+      "INFO [10:15:00] Health checks passed for node-app-04 and node-app-05",
+      "INFO [10:15:10] Load balancer: Registering new nodes into the active target group",
+      "INFO [10:18:00] System stabilized: Traffic at 1,200 req/sec across 6 nodes",
+      "INFO [10:25:00] Auto-scaler: Average CPU utilization dropped back to 45%",
+      "INFO [10:45:00] Traffic subsiding: 500 req/sec, entering cool-down period",
+      "INFO [11:00:00] Auto-scaler: Scaling down, gracefully draining connections from node-app-05"
+    ]
+  },
+  {
+    name: "Nightly Database Backup & Maintenance",
+    logs: [
+      "INFO [02:00:00] CRON Triggered: Nightly database maintenance and backup suite",
+      "INFO [02:00:05] Maintenance worker: Acquiring global read-lock for snapshot consistency",
+      "INFO [02:00:10] PostgreSQL: Initiating pg_dump utility for main_db",
+      "INFO [02:15:22] PostgreSQL: Dump completed successfully. Archive size: 14.2 GB",
+      "INFO [02:15:25] Maintenance worker: Releasing global read-lock, resuming standard operations",
+      "INFO [02:16:00] Backup agent: Compressing archive to main_db_backup_20260218.tar.gz",
+      "INFO [02:22:15] Backup agent: Compression complete. New size: 4.8 GB",
+      "INFO [02:22:30] Backup agent: Uploading archive to S3 bucket (s3://ops-sentinel-backups/daily)",
+      "INFO [02:28:45] Backup agent: Upload verified. ETag matches local checksum",
+      "INFO [02:30:00] Maintenance worker: Starting index defragmentation on high-write tables",
+      "INFO [02:35:10] PostgreSQL: REINDEX TABLE user_sessions completed",
+      "INFO [02:40:00] PostgreSQL: VACUUM ANALYZE completed on all schemas",
+      "INFO [02:45:00] CRON Success: Nightly maintenance suite finished in 45 minutes"
+    ]
+  },
+  {
+    name: "Zero-Downtime Rolling Deployment",
+    logs: [
+      "INFO [14:00:00] CI/CD Pipeline: Webhook received, initiating deployment for v2.4.1",
+      "INFO [14:00:15] Orchestrator: Pulling image registry.internal/app:v2.4.1",
+      "INFO [14:01:00] Orchestrator: Image pulled successfully, preparing replica set",
+      "INFO [14:01:30] Deployment Strategy: RollingUpdate (maxSurge: 25%, maxUnavailable: 0%)",
+      "INFO [14:02:00] Pod app-v2.4.1-abcxd created, scheduling to worker-node-2",
+      "INFO [14:02:45] Pod app-v2.4.1-abcxd readiness probe passed: HTTP 200 on /health",
+      "INFO [14:03:00] Ingress Controller: Shifting 10% of traffic to new replica set",
+      "INFO [14:05:00] Telemetry: Error rates for v2.4.1 nominal (< 0.1%), latency stable",
+      "INFO [14:05:15] Ingress Controller: Shifting 50% of traffic to new replica set",
+      "INFO [14:06:00] Pod app-v2.4.0-xyzab receiving termination signal (SIGTERM)",
+      "INFO [14:06:30] Pod app-v2.4.0-xyzab gracefully closed all active connections",
+      "INFO [14:07:00] Ingress Controller: Shifting 100% of traffic to v2.4.1",
+      "INFO [14:08:00] CI/CD Pipeline: Deployment v2.4.1 completed successfully with 0 downtime"
+    ]
+  },
   {
     name: "Network Connectivity Cascading Failure",
     logs: [
@@ -123,11 +178,11 @@ async function runEternalScreamer() {
       }
       
       // 500ms delay = 2 logs per second
-      await new Promise(r => setTimeout(r, 125)); 
+      await new Promise(r => setTimeout(r, 40)); 
     }
     
     // Brief pause between scenarios
-    await new Promise(r => setTimeout(r, 1000)); 
+    await new Promise(r => setTimeout(r, 80)); 
   }
 }
 

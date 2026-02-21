@@ -1,43 +1,79 @@
 import express from 'express';
-import { findResolvingDocuments } from './services/resolverService.js';
+import fetch from 'node-fetch';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware to parse JSON bodies
 app.use(express.json());
 
-app.post('/api/v1/incidents/resolve', async (req, res) => {
-    const { error, stack } = req.body;
+const PORT = 3000;
 
-    // Validation
-    if (!error && !stack) {
-        return res.status(400).json({ 
-            success: false, 
-            message: 'Bad Request: You must provide either an "error" or "stack" string.' 
-        });
+// 1. FORMATTER: Clean HTML and handle the &nbsp; and link clutter
+function formatSolution(html) {
+    return html
+        .replace(/<a [^>]*>([^<]+)<\/a>/gi, '$1') 
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&gt;/g, '>')  // Fixes >
+        .replace(/&lt;/g, '<')  // Fixes <
+        .replace(/&amp;/g, '&') // Fixes &
+        .replace(/<p>/g, '')
+        .replace(/<\/p>/g, '\n')
+        .replace(/<li>/g, '  • ')
+        .replace(/<\/li>/g, '\n')
+        .replace(/<code>/g, '`')
+        .replace(/<\/code>/g, '`')
+        .replace(/<pre>/g, '\n---\n')
+        .replace(/<\/pre>/g, '\n---\n')
+        .trim();
+}
+
+// 2. SEARCH LOGIC: Rejecting wrong platforms
+async function getBwsSolution(rawLog, metadata = []) {
+    const queries = [
+        rawLog.replace(/\[.*?\]/g, '').replace(/\b\d+\b/g, '').replace(/[:()-]/g, '').trim(),
+        `Linux kernel "Out of memory" kill process`, // Forced 'Linux' keyword
+        `Ubuntu server OOM killer fix`
+    ];
+
+    for (let q of queries) {
+        const params = new URLSearchParams({ order: 'desc', sort: 'relevance', q: q, site: 'stackoverflow' });
+        const res = await fetch(`https://api.stackexchange.com/2.3/search/advanced?${params}`);
+        const data = await res.json();
+
+        if (data.items?.length > 0) {
+            for (let i = 0; i < Math.min(data.items.length, 5); i++) {
+                const solution = await processBestAnswer(data.items[i]);
+                
+                // QUALITY CHECK: Must have code AND shouldn't be about WSL (Windows)
+                if (solution && !solution.startsWith("❌") && solution.includes('`')) {
+                    if (solution.toLowerCase().includes('wsl') || solution.toLowerCase().includes('windows')) {
+                        console.log(`⏩ Skipping WSL/Windows solution in Thread #${i}`);
+                        continue; 
+                    }
+                    return solution;
+                }
+            }
+        }
     }
+    return "❌ No platform-appropriate solutions found.";
+}
 
-    try {
-        console.log(`[API] Received resolution request for error: ${error || 'Unknown'}`);
-        
-        // Fetch documents
-        const resolvingData = await findResolvingDocuments(error, stack);
-        
-        res.status(200).json({
-            success: true,
-            data: resolvingData
-        });
+async function processBestAnswer(bestQuestion) {
+    const url = `https://api.stackexchange.com/2.3/questions/${bestQuestion.question_id}/answers?order=desc&sort=votes&site=stackoverflow&filter=withbody`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.items?.length) return "❌ No answers";
 
-    } catch (err) {
-        res.status(500).json({
-            success: false,
-            message: 'An internal error occurred while fetching resolving documents.',
-            details: err.message
-        });
+    for (let answer of data.items) {
+        if (answer.body.includes('<pre>') || answer.body.includes('<code>')) {
+            return formatSolution(answer.body);
+        }
     }
+    return "❌ No code blocks";
+}
+
+app.post('/active-retrieval', async (req, res) => {
+    const { error, metadata } = req.body;
+    const solution = await getBwsSolution(error, metadata || []);
+    res.json({ success: true, proper_solution: solution });
 });
 
-app.listen(PORT, () => {
-    console.log(`[Server] Incident Resolver API running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 BWS Active Retrieval Server running on ${PORT}`));

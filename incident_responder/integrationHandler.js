@@ -2,6 +2,7 @@ import { createClient } from 'redis';
 import { CONFIG } from './config.js';
 import { supabase } from './supabaseClient.js';
 import { getEmbedding, getChatResponse, generateSearchTags } from './controllers/aiController.js';
+import { fetchStackOverflowSolution } from './services/externalRetrievalService.js';
 
 const redisClient = createClient({
   host: CONFIG.redis.host,
@@ -99,38 +100,53 @@ export async function resolveIncidentWithRAG(forensicStory) {
     const queryEmbedding = await getEmbedding(crashLine);
     
     // 1. STAGE 1: Passive Retrieval (Internal KB)
-    const { data: matches, error } = await supabase.rpc('match_document_chunks_with_tags', {
+    const { data: matches } = await supabase.rpc('match_document_chunks_with_tags', {
       query_embedding: queryEmbedding,
-      match_threshold: 0.1, // Lowered here to "see" the scores, but we filter below
+      match_threshold: 0.1, 
       match_count: 3
     });
 
-    // Check the highest similarity score
     const topMatch = matches && matches.length > 0 ? matches[0] : null;
-    const confidenceScore = topMatch ? topMatch.similarity : 0; 
+    const confidenceScore = topMatch ? topMatch.similarity : 0;
 
     let contextSources = [];
+    let tagsUsed = ["internal-docs"];
 
-    // Use internal documents only
+    // Populate context from internal docs if they exist
     if (matches && matches.length > 0) {
       console.log(`✅ Internal Match Found (Score: ${confidenceScore.toFixed(2)})`);
       contextSources = matches.map(m => m.content);
-    } else {
-      console.log(`⚠️ No internal document matches found for this incident.`);
     }
 
-    // 3. Generate Solution using the selected context [cite: 131]
+    // 2. STAGE 2: Active Retrieval (External Fallback)
+    // Threshold check: If internal docs are weak (< 0.5 similarity), fetch from Stack Overflow
+    if (confidenceScore < 0.5) {
+      console.log(`📡 Low internal confidence (${confidenceScore.toFixed(2)}). Triggering Active Retrieval...`);
+      
+      // Generate search tags using your AI controller
+      const searchTags = await generateSearchTags(forensicStory);
+      
+      // Fetch the high-quality answer from Stack Overflow
+      const externalKnowledge = await fetchStackOverflowSolution(crashLine, searchTags);
+
+      if (externalKnowledge) {
+        console.log("🌐 External Knowledge successfully retrieved from Stack Overflow");
+        contextSources.push(`EXTERNAL KNOWLEDGE (Stack Overflow):\n${externalKnowledge}`);
+        tagsUsed.push("external-web", ...searchTags);
+      } else {
+        console.log("⚠️ No suitable external solution found.");
+      }
+    }
+
+    // 3. Generate Solution using Hybrid Context
     const solution = await getChatResponse(
       forensicStory.join("\n"),
       contextSources
     );
 
-    // 4. Self-Learning Loop - Only for internal docs
-    // (Removed auto-ingestion from web sources)
-
     return {
       solution,
-      tagsUsed: ["internal-docs"],
+      tagsUsed: tagsUsed,
       sources: matches && matches.length > 0 ? [...new Set(matches.map(m => m.metadata.source))] : [],
       documentMatches: contextSources.length,
       confidence: confidenceScore
