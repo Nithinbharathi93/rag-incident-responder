@@ -5,7 +5,9 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node incident_responder/server.js",
+    "responder": "node --watch incident_responder/server.js",
+    "screamer": "node company_server/flush_db.js && node company_server/screamer.js"
   },
   "repository": {
     "type": "git",
@@ -22,10 +24,15 @@
     "@langchain/textsplitters": "^1.0.1",
     "@supabase/supabase-js": "^2.93.2",
     "axios": "^1.13.4",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "google-it": "^1.6.4",
     "langsmith": "^0.4.10",
+    "marked": "^17.0.3",
     "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
     "pdf-parse": "^1.1.1",
     "redis": "^5.10.0"
   }

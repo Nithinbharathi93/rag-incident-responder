@@ -12,25 +12,23 @@ export async function getEmbedding(text) {
 }
 
 export async function getChatResponse(userQuery, contextChunks) {
-  const systemPrompt = `
-You are Ops-Sentinel, an incident response automation system.
-STRICT RULE: Only provide solutions found in the "SRE Documentation Context".
-If the context is empty or doesn't match the error, state: "No matching playbook found. Proceed with manual DB/Cache check."
-DO NOT suggest general commands unless they are in the context.
-`;
+  // SYSTEM PROMPT TUNING: Shortening instructions makes SLMs faster.
+  const systemPrompt = `You are Ops-Sentinel. Use the provided context to solve the incident. 
+  If no match, say "No playbook found." 
+  Format: 1. Root Cause, 2. Fix Command. Keep it under 100 words.`;
 
   const contextBlock = contextChunks.length > 0 
-    ? contextChunks.join("\n\n---\n\n")
-    : "No context available.";
+    ? contextChunks.join("\n")
+    : "No context.";
 
   const response = await hf.chatCompletion({
     model: CONFIG.ai.chatModel,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `SRE Documentation Context:\n${contextBlock}\n\nIncident Story:\n${userQuery}` }
+      { role: "user", content: `Context:\n${contextBlock}\n\nIncident:\n${userQuery}` }
     ],
     temperature: CONFIG.ai.temperature,
-    max_tokens: 500
+    max_tokens: 200 // Reduced from 500 to force faster completion
   });
 
   return response.choices[0].message.content;

@@ -23,3 +23,24 @@ export async function ingestDocument(fileBuffer, fileName) {
     });
   }
 }
+
+// Add this function to ingestor.js
+export async function ingestManualEntry(solution, source, tags, forensicStory) {
+  // We embed the STORY (the problem), not the solution
+  const searchableText = Array.isArray(forensicStory) ? forensicStory.join("\n") : forensicStory;
+  const embedding = await getEmbedding(searchableText);
+  
+  const { error } = await supabase.from("document_chunks").insert({
+    content: searchableText, // This matches incoming logs
+    embedding: embedding,
+    metadata: { 
+      source: source,
+      tags: tags,
+      saved_solution: solution, // This is what we display
+      is_verified: true 
+    }
+  });
+
+  if (error) throw error;
+  console.log(`🧠 KB Updated: Anchored solution to log pattern.`);
+}

@@ -5,7 +5,8 @@ export const CONFIG = {
     listName: "ops_sentinel_buffer"
   },
   screamer: {
-    totalLogs: 200
+    totalLogs: 200,
+    printInjectedLogs: true  // Set to false to hide individual log injections
   },
   buffer: {
     releaseRateMs: 500, // Faster processing for complex logs

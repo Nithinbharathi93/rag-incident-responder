@@ -16,8 +16,10 @@ export const CONFIG = {
 
   // Buffer Handler Configuration
   buffer: {
-    releaseRateMs: 500, // Faster processing for complex logs
-    historyWindowSize: 100, // Larger history for longer incident chains
+    fetchRateMs: 10,      // Fast continuous fetching (every 10ms = 100 checks/sec)
+    releaseRateMs: 250,   // Slower analysis rate (every 250ms = 4 analyses/sec)
+    historyWindowSize: 200, // Larger history for longer incident chains
+    maxParallelAnalyses: 5, // Limit concurrent AI calls to prevent CPU/GPU choking
     // High-priority signals that act as "Cause" candidates
     causalSignals: [
       "WARN", "ERROR", "FATAL",
@@ -51,7 +53,7 @@ export const CONFIG = {
   },
   ai: {
     embeddingModel: "sentence-transformers/all-MiniLM-L6-v2",
-    chatModel: "meta-llama/Llama-3.1-8B-Instruct",
+    chatModel: "meta-llama/Llama-3.2-3B-Instruct", // SWAP TO SLM
     temperature: 0.1
   },
   chunks: {
