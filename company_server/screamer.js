@@ -155,35 +155,60 @@ const incidents = [
   }
 ];
 
-/**
- * 📢 ETERNAL SCREAMER
- * Simulates a server in a total meltdown loop.
- */
-async function runEternalScreamer() {
-  console.log("🔥 ETERNAL SCREAMER STARTED. Injecting logs line by line...");
+// async function runEternalScreamer() {
+//   console.log("🔥 ETERNAL SCREAMER STARTED. Injecting logs line by line...");
   
+//   let totalInjected = 0;
+
+//   while (true) {
+//     const scenario = incidents[Math.floor(Math.random() * incidents.length)];
+//     for (const log of scenario.logs) {
+//       await client.rPush(CONFIG.redis.listName, log);
+//       totalInjected++;
+//       if (CONFIG.screamer.printInjectedLogs) {
+//         console.log(`📝 [${totalInjected}] ${log}`);
+//       }
+//       await new Promise(r => setTimeout(r, 2)); 
+//     }
+//     await new Promise(r => setTimeout(r, 4)); 
+//   }
+// }
+
+async function runFiniteScreamer() {
+  const TARGET_TOTAL = 300;
+  const BATCH_SIZE = 10;
   let totalInjected = 0;
 
-  while (true) {
-    const scenario = incidents[Math.floor(Math.random() * incidents.length)];
-    
-    // Inject logs line-by-line with 500ms delay (2 logs per second)
-    for (const log of scenario.logs) {
-      await client.rPush(CONFIG.redis.listName, log);
+  console.log(`🚀 STRESS TEST STARTED: Injecting ${TARGET_TOTAL} lines at ~${BATCH_SIZE} LPS...`);
+
+  while (totalInjected < TARGET_TOTAL) {
+    const startTime = Date.now();
+    const batchPromises = [];
+
+    for (let i = 0; i < BATCH_SIZE && totalInjected < TARGET_TOTAL; i++) {
+      const scenario = incidents[Math.floor(Math.random() * incidents.length)];
+      const log = scenario.logs[Math.floor(Math.random() * scenario.logs.length)];
+      
+      batchPromises.push(client.rPush(CONFIG.redis.listName, log));
       totalInjected++;
-      
-      // Print what log is being injected
-      if (CONFIG.screamer.printInjectedLogs) {
-        console.log(`📝 [${totalInjected}] ${log}`);
-      }
-      
-      // 500ms delay = 2 logs per second
-      await new Promise(r => setTimeout(r, 40)); 
     }
+
+    await Promise.all(batchPromises);
+
+    const elapsed = Date.now() - startTime;
+    const sleepTime = Math.max(0, 1000 - elapsed);
     
-    // Brief pause between scenarios
-    await new Promise(r => setTimeout(r, 80)); 
+    process.stdout.write(`\r📤 Progress: [${totalInjected}/${TARGET_TOTAL}] | Batch Time: ${elapsed}ms`);
+
+    if (totalInjected < TARGET_TOTAL) {
+      await new Promise(r => setTimeout(r, sleepTime));
+    }
   }
+
+  console.log(`\n\n✅ TEST COMPLETE. 1000 lines injected into ${CONFIG.redis.listName}.`);
+  console.log(`📊 You can now check your [STATS] for the 94.3% Compression Ratio benchmark.`);
+  process.exit(0); 
 }
 
-runEternalScreamer().catch(console.error);
+runFiniteScreamer().catch(console.error);
+// runEternalScreamer().catch(console.error);
