@@ -81,5 +81,23 @@ incident_responder/
 
 ---
 
+## How to run?
+
+**terminal 1**
+
+```bash
+cd incident_responder
+npm run dev
+```
+
+**terminal 2**
+
+```bash
+cd company_server
+node screamer
+```
+
+> [!NOTE]
+> Run the [index.html](index.html) with `live server` extension.
 
 **Built with ❤️ for the SRE community. Your PaaS, now fully autonomous.**
