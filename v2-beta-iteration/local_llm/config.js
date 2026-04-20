@@ -53,7 +53,7 @@ export const CONFIG = {
   },
   ai: {
     embeddingModel: "sentence-transformers/all-MiniLM-L6-v2",
-    chatModel: "Qwen/Qwen2.5-7B-Instruct", 
+    chatModel: "meta-llama/Llama-3.2-3B-Instruct", // SWAP TO SLM
     temperature: 0.1
   },
   chunks: {
